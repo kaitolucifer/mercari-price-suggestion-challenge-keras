@@ -144,9 +144,9 @@ class Mercari_Model:
         bn_concat = BatchNormalization()(concat_layer)
         
         # Fully Connected Layer
-        bn1 = BatchNormalization()(Dense(512, activation='relu', use_bias=False)(bn_concat))
-        bn2 = BatchNormalization()(Dense(256, activation='relu', use_bias=False)(bn1))
-        fc3 = Dense(128, activation='relu')(bn2)
+        bn1 = BatchNormalization()(Dense(256, activation='relu', use_bias=False)(bn_concat))
+        bn2 = BatchNormalization()(Dense(128, activation='relu', use_bias=False)(bn1))
+        fc3 = Dense(64, activation='relu')(bn2)
         output = Dense(1, activation='linear')(fc3)
 
         # Model
@@ -155,7 +155,7 @@ class Mercari_Model:
                         output)
         self.model.compile(loss='mse', optimizer='adam', metrics=['mae', rmsle_keras])
         
-    def train_model(self, batch_size=8192, epochs=5):
+    def train_model(self, batch_size=4096, epochs=5):
         self.model.fit(self.x_train, self.y_train, epochs=epochs, batch_size=batch_size, 
                         validation_split=0.01, verbose=1)
 
