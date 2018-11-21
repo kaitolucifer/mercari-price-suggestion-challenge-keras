@@ -140,6 +140,8 @@ class Mercari_Model:
             concat_item_decription,
             concat_name
         ])
+        concat_layer = Activation('relu')(concat_layer)
+        bn_concat = BatchNormalization()(concat_layer)
         
         # Fully Connected Layer
         bn1 = BatchNormalization()(Dense(512, activation='relu', use_bias=False)(bn_concat))
