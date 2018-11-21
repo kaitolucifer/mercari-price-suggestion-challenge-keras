@@ -137,11 +137,9 @@ class Mercari_Model:
             Flatten()(embed_category_name),
             Flatten()(embed_item_condition_id),
             Flatten()(embed_shipping),
-            Flatten()(pool_item_decription),
-            Flatten()(pool_name)
+            concat_item_decription,
+            concat_name
         ])
-        concat_layer = Activation('relu')(concat_layer)
-        bn_concat = BatchNormalization()(concat_layer)
         
         # Fully Connected Layer
         bn1 = BatchNormalization()(Dense(512, activation='relu', use_bias=False)(bn_concat))
