@@ -4,10 +4,13 @@ import math
 from sklearn.preprocessing import LabelEncoder, StandardScaler, minmax_scale
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-from keras.layers import Input, Dropout, Dense, BatchNormalization, Activation, concatenate, GRU, LSTM, Embedding, Flatten, Conv1D, MaxPooling1D
+from keras.layers import (Input, Dropout, Dense, Concatenate,
+    BatchNormalization, Activation, concatenate, GRU, LSTM, 
+    Embedding, Flatten, Conv2D, GlobalMaxPooling2D, Reshape)
 from keras.models import Model
 from keras.callbacks import ModelCheckpoint, Callback, EarlyStopping
 from keras import backend as K
+from tensorflow.keras.utils import plot_model
 
 
 #A function to calculate Root Mean Squared Logarithmic Error (RMSLE)
@@ -23,7 +26,7 @@ def rmsle_keras(y_true, y_pred):
 
 def preprocessing():
     train = pd.read_table('../input/train.tsv')
-    test = pd.read_table('../input/test_stg2.tsv')
+    test = pd.read_table('../input/test_stg2.tsv ')
     train.fillna('missing', inplace=True)
     test.fillna('missing', inplace=True)
     print('カテゴリーデータを数値化...')
@@ -103,11 +106,30 @@ class Mercari_Model:
         embed_shipping = Embedding(2, 
             int(np.ceil(2**0.25)))(shipping_input)
 
-        # Conv1D Layers (You can switch to RNN)
-        conv_item_decription = Conv1D(filters=32, kernel_size=(3,), activation='relu')(embed_item_decription)
-        pool_item_decription = MaxPooling1D()(conv_item_decription)
-        conv_name = Conv1D(filters=8, kernel_size=(3,), activation='relu')(embed_name)
-        pool_name = MaxPooling1D()(conv_name)
+        # TextCNN Layers (You can switch to RNN)
+        reshape_embed_item_decription = Reshape((self.x_train['item_description'].shape[1], embed_item_decription_dim, 1))(embed_item_decription)
+        conv_item_decription1 = Conv2D(filters=64, 
+                                      kernel_size=(3, embed_item_decription_dim), activation='relu')(reshape_embed_item_decription)
+        conv_item_decription2 = Conv2D(filters=64, 
+                                      kernel_size=(4, embed_item_decription_dim), activation='relu')(reshape_embed_item_decription)
+        conv_item_decription3 = Conv2D(filters=64, 
+                                      kernel_size=(5, embed_item_decription_dim), activation='relu')(reshape_embed_item_decription)
+        pool_item_decription1 = GlobalMaxPooling2D()(conv_item_decription1)
+        pool_item_decription2 = GlobalMaxPooling2D()(conv_item_decription2)
+        pool_item_decription3 = GlobalMaxPooling2D()(conv_item_decription3)
+        concat_item_decription = Concatenate(axis=1)([pool_item_decription1, pool_item_decription2, pool_item_decription3])
+        
+        reshape_embed_name = Reshape((self.x_train['name'].shape[1], embed_name_dim, 1))(embed_name)
+        conv_name1 = Conv2D(filters=16, 
+                           kernel_size=(3, embed_name_dim), activation='relu')(reshape_embed_name)
+        conv_name2 = Conv2D(filters=16, 
+                           kernel_size=(4, embed_name_dim), activation='relu')(reshape_embed_name)
+        conv_name3 = Conv2D(filters=16, 
+                           kernel_size=(5, embed_name_dim), activation='relu')(reshape_embed_name)
+        pool_name1 = GlobalMaxPooling2D()(conv_name1)
+        pool_name2 = GlobalMaxPooling2D()(conv_name2)
+        pool_name3 = GlobalMaxPooling2D()(conv_name3)
+        concat_name = Concatenate(axis=1)([pool_name1, pool_name2, pool_name3])
 
         # concatenate
         concat_layer = concatenate([
@@ -133,7 +155,7 @@ class Mercari_Model:
                         output)
         self.model.compile(loss='mse', optimizer='adam', metrics=['mae', rmsle_keras])
         
-    def train_model(self, batch_size=8192, epochs=10):
+    def train_model(self, batch_size=8192, epochs=5):
         self.model.fit(self.x_train, self.y_train, epochs=epochs, batch_size=batch_size, 
                         validation_split=0.01, verbose=1)
 
@@ -149,3 +171,4 @@ if __name__ == '__main__':
     model.create_model()
     model.train_model()
     model.predict_testset()
+    plot_model(model.model, to_file='model.png', show_shapes=True, show_layer_names=False)
