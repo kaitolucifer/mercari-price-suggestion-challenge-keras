@@ -25,5 +25,5 @@
 You can download the dataset from [here](https://www.kaggle.com/c/mercari-price-suggestion-challenge)</br>
 I put all categorical features into different embedding layers.</br>
 And for the text featrues, I change them to sequence data and put them into embedding layers.</br>
-Then use TextCNN to extract their features.(Also tried using RNN)</br>
+Then use TextCNN to extract their features.(Also tried RNN)</br>
 Sort of joint learning.</br>
