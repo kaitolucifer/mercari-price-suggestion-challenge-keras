@@ -93,10 +93,10 @@ class Mercari_Model:
         shipping_input = Input(shape=(1,), name='shipping')
 
         # Embedding Layers
-        embed_name = Embedding(self.max_text, 
-            int(np.ceil((self.x_train['name'].max()+1)**0.25)))(name_input)
-        embed_item_decription = Embedding(self.max_text, 
-            int(np.ceil((self.x_train['item_description'].max()+1)**0.25)))(item_description_input)
+        embed_name_dim = int(np.ceil((self.x_train['name'].max()+1)**0.25))
+        embed_name = Embedding(self.max_text, embed_name_dim)(name_input)
+        embed_item_decription_dim = int(np.ceil((self.x_train['item_description'].max()+1)**0.25))
+        embed_item_decription = Embedding(self.max_text, embed_item_decription_dim)(item_description_input)
         embed_brand_name = Embedding(self.max_brand_name, 
             int(np.ceil(self.max_brand_name**0.25)))(brand_name_input)
         embed_category_name = Embedding(self.max_category, 
