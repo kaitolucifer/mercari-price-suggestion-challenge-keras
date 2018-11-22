@@ -190,7 +190,7 @@ class Mercari_Model:
 if __name__ == '__main__':
     model = Mercari_Model()
     model.create_model()
-    # model.train_model()
-    # model.predict_testset()
+    model.train_model()
+    model.predict_testset()
     model.save_model()
     plot_model(model.model, to_file='model.png', show_shapes=True, show_layer_names=False)
