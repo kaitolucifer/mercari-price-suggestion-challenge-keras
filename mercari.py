@@ -43,7 +43,7 @@ def preprocessing():
     print('GloVe分散表現を読み込む...')
     word_index = tokenizer.word_index
     embeddings_index = {}
-    f = open('glove.6B.100d.txt')
+    f = open('glove.6B.100d.txt', encoding='utf-8')
     for line in f:
         values = line.split()
         word = values[0]
@@ -106,7 +106,7 @@ class Mercari_Model:
         shipping_input = Input(shape=(1,), name='shipping')
         
         # GloVe Embedding Matrix
-        embedding_matrix = np.random.randn(self.max_text, 100)
+        embedding_matrix = np.zeros((self.max_text, 100))
         for word, i in self.word_index.items():
             embedding_vector = self.embeddings_index.get(word)
             if embedding_vector is not None:
@@ -190,7 +190,7 @@ class Mercari_Model:
 if __name__ == '__main__':
     model = Mercari_Model()
     model.create_model()
-    model.train_model()
-    model.predict_testset()
+    # model.train_model()
+    # model.predict_testset()
     model.save_model()
     plot_model(model.model, to_file='model.png', show_shapes=True, show_layer_names=False)
