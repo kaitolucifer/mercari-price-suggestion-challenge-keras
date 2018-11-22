@@ -25,8 +25,8 @@ def rmsle_keras(y_true, y_pred):
     return K.sqrt(K.mean(K.square(first_log - second_log), axis=-1))
 
 def preprocessing():
-    train = pd.read_table('../input/train.tsv')
-    test = pd.read_table('../input/test_stg2.tsv ')
+    train = pd.read_table('train.tsv')
+    test = pd.read_table('test.tsv')
     train.fillna('missing', inplace=True)
     test.fillna('missing', inplace=True)
     print('カテゴリーデータを数値化...')
@@ -39,6 +39,17 @@ def preprocessing():
     raw_text = np.hstack([train.item_description.str.lower(), train.name.str.lower()])
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(raw_text)
+    # use glove vectors
+    print('GloVe分散表現を読み込む...')
+    word_index = tokenizer.word_index
+    embeddings_index = {}
+    f = open('glove.6B.100d.txt')
+    for line in f:
+        values = line.split()
+        word = values[0]
+        coefs = np.asarray(values[1:], dtype='float32')
+        embeddings_index[word] = coefs
+    f.close() 
 
     train.item_description = tokenizer.texts_to_sequences(train.item_description.str.lower())
     test.item_description = tokenizer.texts_to_sequences(test.item_description.str.lower())
@@ -66,12 +77,12 @@ def preprocessing():
               'shipping': np.array(test.shipping)}
     y_train = np.array(train.price)
     return x_train, x_test, y_train, max_name, max_item_description, max_text,\
-           max_category, max_brand_name, max_item_condition_id
+           max_category, max_brand_name, max_item_condition_id, embeddings_index, word_index
 
 class Mercari_Model:
     def __init__(self):
         x_train, x_test, y_train, max_name, max_item_description, max_text,\
-        max_category, max_brand_name, max_item_condition_id = preprocessing()
+        max_category, max_brand_name, max_item_condition_id, embeddings_index, word_index = preprocessing()
         self.x_train = x_train
         self.x_test = x_test
         self.y_train = y_train
@@ -81,6 +92,8 @@ class Mercari_Model:
         self.max_category = max_category
         self.max_brand_name = max_brand_name
         self.max_item_condition_id = max_item_condition_id
+        self.embeddings_index = embeddings_index
+        self.word_index = word_index
         self.model = None
 
     def create_model(self):
@@ -91,12 +104,18 @@ class Mercari_Model:
         category_name_input = Input(shape=(1,), name='category_name')
         item_condition_id_input = Input(shape=(1,), name='item_condition_id')
         shipping_input = Input(shape=(1,), name='shipping')
+        
+        # GloVe Embedding Matrix
+        embedding_matrix = np.random.randn(self.max_text, 100)
+        for word, i in self.word_index.items():
+            embedding_vector = self.embeddings_index.get(word)
+            if embedding_vector is not None:
+                # words not found in embedding index will be all-zeros.
+                embedding_matrix[i] = embedding_vector
 
         # Embedding Layers
-        embed_name_dim = int(np.ceil((self.x_train['name'].max()+1)**0.25))
-        embed_name = Embedding(self.max_text, embed_name_dim)(name_input)
-        embed_item_decription_dim = int(np.ceil((self.x_train['item_description'].max()+1)**0.25))
-        embed_item_decription = Embedding(self.max_text, embed_item_decription_dim)(item_description_input)
+        embed_name = Embedding(self.max_text, 100, weights=[embedding_matrix], trainable=False)(name_input)
+        embed_item_decription = Embedding(self.max_text, 100, weights=[embedding_matrix], trainable=False)(item_description_input)
         embed_brand_name = Embedding(self.max_brand_name, 
             int(np.ceil(self.max_brand_name**0.25)))(brand_name_input)
         embed_category_name = Embedding(self.max_category, 
@@ -107,25 +126,25 @@ class Mercari_Model:
             int(np.ceil(2**0.25)))(shipping_input)
 
         # TextCNN Layers (You can switch to RNN)
-        reshape_embed_item_decription = Reshape((self.x_train['item_description'].shape[1], embed_item_decription_dim, 1))(embed_item_decription)
+        reshape_embed_item_decription = Reshape((self.x_train['item_description'].shape[1], 100, 1))(embed_item_decription)
         conv_item_decription1 = Conv2D(filters=64, 
-                                      kernel_size=(3, embed_item_decription_dim), activation='relu')(reshape_embed_item_decription)
+                                      kernel_size=(3, 100), activation='relu')(reshape_embed_item_decription)
         conv_item_decription2 = Conv2D(filters=64, 
-                                      kernel_size=(4, embed_item_decription_dim), activation='relu')(reshape_embed_item_decription)
+                                      kernel_size=(4, 100), activation='relu')(reshape_embed_item_decription)
         conv_item_decription3 = Conv2D(filters=64, 
-                                      kernel_size=(5, embed_item_decription_dim), activation='relu')(reshape_embed_item_decription)
+                                      kernel_size=(5, 100), activation='relu')(reshape_embed_item_decription)
         pool_item_decription1 = GlobalMaxPooling2D()(conv_item_decription1)
         pool_item_decription2 = GlobalMaxPooling2D()(conv_item_decription2)
         pool_item_decription3 = GlobalMaxPooling2D()(conv_item_decription3)
         concat_item_decription = Concatenate(axis=1)([pool_item_decription1, pool_item_decription2, pool_item_decription3])
         
-        reshape_embed_name = Reshape((self.x_train['name'].shape[1], embed_name_dim, 1))(embed_name)
+        reshape_embed_name = Reshape((self.x_train['name'].shape[1], 100, 1))(embed_name)
         conv_name1 = Conv2D(filters=16, 
-                           kernel_size=(3, embed_name_dim), activation='relu')(reshape_embed_name)
+                           kernel_size=(3, 100), activation='relu')(reshape_embed_name)
         conv_name2 = Conv2D(filters=16, 
-                           kernel_size=(4, embed_name_dim), activation='relu')(reshape_embed_name)
+                           kernel_size=(4, 100), activation='relu')(reshape_embed_name)
         conv_name3 = Conv2D(filters=16, 
-                           kernel_size=(5, embed_name_dim), activation='relu')(reshape_embed_name)
+                           kernel_size=(5, 100), activation='relu')(reshape_embed_name)
         pool_name1 = GlobalMaxPooling2D()(conv_name1)
         pool_name2 = GlobalMaxPooling2D()(conv_name2)
         pool_name3 = GlobalMaxPooling2D()(conv_name3)
@@ -144,9 +163,9 @@ class Mercari_Model:
         bn_concat = BatchNormalization()(concat_layer)
         
         # Fully Connected Layer
-        bn1 = BatchNormalization()(Dense(256, activation='relu', use_bias=False)(bn_concat))
-        bn2 = BatchNormalization()(Dense(128, activation='relu', use_bias=False)(bn1))
-        fc3 = Dense(64, activation='relu')(bn2)
+        bn1 = BatchNormalization()(Dense(512, activation='relu', use_bias=False)(bn_concat))
+        bn2 = BatchNormalization()(Dense(256, activation='relu', use_bias=False)(bn1))
+        fc3 = Dense(128, activation='relu')(bn2)
         output = Dense(1, activation='linear')(fc3)
 
         # Model
@@ -155,9 +174,8 @@ class Mercari_Model:
                         output)
         self.model.compile(loss='mse', optimizer='adam', metrics=['mae', rmsle_keras])
         
-    def train_model(self, batch_size=4096, epochs=5):
-        self.model.fit(self.x_train, self.y_train, epochs=epochs, batch_size=batch_size, 
-                        validation_split=0.01, verbose=1)
+    def train_model(self, batch_size=8192, epochs=20):
+        self.model.fit(self.x_train, self.y_train, epochs=epochs, batch_size=batch_size, validation_split=0.01, verbose=1)
 
     def predict_testset(self, filename='submission.csv', batch_size=8192):
         preds = self.model.predict(self.x_test, batch_size=batch_size)
@@ -165,10 +183,14 @@ class Mercari_Model:
         submission["price"] = preds
         submission.to_csv('./'+filename, index=False)
         
+    def save_model(self, filename='model.h5'):
+        self.model.save(filename)
+        
 
 if __name__ == '__main__':
     model = Mercari_Model()
     model.create_model()
     model.train_model()
     model.predict_testset()
+    model.save_model()
     plot_model(model.model, to_file='model.png', show_shapes=True, show_layer_names=False)
