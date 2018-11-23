@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import math
-from sklearn.preprocessing import LabelEncoder, StandardScaler, minmax_scale
+from sklearn.preprocessing import LabelEncoder, StandardScaler, MinMaxScaler
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import (Input, Dropout, Dense, Concatenate,
@@ -76,16 +76,20 @@ def preprocessing():
               'item_condition_id': np.array(test.item_condition_id),
               'shipping': np.array(test.shipping)}
     y_train = np.array(train.price)
-    return x_train, x_test, y_train, max_name, max_item_description, max_text,\
+    y_train = np.log(y_train+1)
+    y_scaler = MinMaxScaler(feature_range=(-1, 1))
+    y_train = y_scaler.fit_transform(y_train.reshape(-1, 1))
+    return x_train, x_test, y_train, max_name, max_item_description, max_text, y_scaler,\
            max_category, max_brand_name, max_item_condition_id, embeddings_index, word_index
 
 class Mercari_Model:
     def __init__(self):
-        x_train, x_test, y_train, max_name, max_item_description, max_text,\
+        x_train, x_test, y_train, max_name, max_item_description, max_text, y_scaler,\
         max_category, max_brand_name, max_item_condition_id, embeddings_index, word_index = preprocessing()
         self.x_train = x_train
         self.x_test = x_test
         self.y_train = y_train
+        self.y_scaler = y_scaler
         self.max_name = max_name
         self.max_item_description = max_item_description
         self.max_text = max_text
@@ -179,6 +183,8 @@ class Mercari_Model:
 
     def predict_testset(self, filename='submission.csv', batch_size=8192):
         preds = self.model.predict(self.x_test, batch_size=batch_size)
+        preds = self.y_scaler.inverse_transform(preds)
+        preds = np.exp(preds) - 1
         submission = pd.DataFrame({'test_id': range(len(self.x_test['name']))})
         submission["price"] = preds
         submission.to_csv('./'+filename, index=False)
