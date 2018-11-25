@@ -6,7 +6,7 @@ from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import (Input, Dropout, Dense, Concatenate,
     BatchNormalization, Activation, concatenate, GRU, LSTM, 
-    Embedding, Flatten, Conv2D, GlobalMaxPooling2D, Reshape)
+    Embedding, Flatten, Conv1D, GlobalMaxPooling1D)
 from keras.models import Model
 from keras.callbacks import ModelCheckpoint, Callback, EarlyStopping
 from keras import backend as K
@@ -120,38 +120,32 @@ class Mercari_Model:
         # Embedding Layers
         embed_name = Embedding(self.max_text, 100, weights=[embedding_matrix], trainable=False)(name_input)
         embed_item_decription = Embedding(self.max_text, 100, weights=[embedding_matrix], trainable=False)(item_description_input)
-        embed_brand_name = Embedding(self.max_brand_name, 
-            int(np.ceil(self.max_brand_name**0.25)))(brand_name_input)
-        embed_category_name = Embedding(self.max_category, 
-            int(np.ceil(self.max_category**0.25)))(category_name_input)
-        embed_item_condition_id = Embedding(self.max_item_condition_id, 
-            int(np.ceil(self.max_item_condition_id**0.25)))(item_condition_id_input)
-        embed_shipping = Embedding(2, 
-            int(np.ceil(2**0.25)))(shipping_input)
+        embed_brand_name = Embedding(self.max_brand_name, 32)(brand_name_input)
+        embed_category_name = Embedding(self.max_category, 32)(category_name_input)
+        embed_item_condition_id = Embedding(self.max_item_condition_id, 32)(item_condition_id_input)
+        embed_shipping = Embedding(2, 8)(shipping_input)
 
         # TextCNN Layers (You can switch to RNN)
-        reshape_embed_item_decription = Reshape((self.x_train['item_description'].shape[1], 100, 1))(embed_item_decription)
-        conv_item_decription1 = Conv2D(filters=64, 
-                                      kernel_size=(3, 100), activation='relu')(reshape_embed_item_decription)
-        conv_item_decription2 = Conv2D(filters=64, 
-                                      kernel_size=(4, 100), activation='relu')(reshape_embed_item_decription)
-        conv_item_decription3 = Conv2D(filters=64, 
-                                      kernel_size=(5, 100), activation='relu')(reshape_embed_item_decription)
-        pool_item_decription1 = GlobalMaxPooling2D()(conv_item_decription1)
-        pool_item_decription2 = GlobalMaxPooling2D()(conv_item_decription2)
-        pool_item_decription3 = GlobalMaxPooling2D()(conv_item_decription3)
+        conv_item_decription1 = Conv1D(filters=64, 
+                                      kernel_size=3, activation='relu')(embed_item_decription)
+        conv_item_decription2 = Conv1D(filters=64, 
+                                      kernel_size=4, activation='relu')(embed_item_decription)
+        conv_item_decription3 = Conv1D(filters=64, 
+                                      kernel_size=5, activation='relu')(embed_item_decription)
+        pool_item_decription1 = GlobalMaxPooling1D()(conv_item_decription1)
+        pool_item_decription2 = GlobalMaxPooling1D()(conv_item_decription2)
+        pool_item_decription3 = GlobalMaxPooling1D()(conv_item_decription3)
         concat_item_decription = Concatenate(axis=1)([pool_item_decription1, pool_item_decription2, pool_item_decription3])
         
-        reshape_embed_name = Reshape((self.x_train['name'].shape[1], 100, 1))(embed_name)
-        conv_name1 = Conv2D(filters=16, 
-                           kernel_size=(3, 100), activation='relu')(reshape_embed_name)
-        conv_name2 = Conv2D(filters=16, 
-                           kernel_size=(4, 100), activation='relu')(reshape_embed_name)
-        conv_name3 = Conv2D(filters=16, 
-                           kernel_size=(5, 100), activation='relu')(reshape_embed_name)
-        pool_name1 = GlobalMaxPooling2D()(conv_name1)
-        pool_name2 = GlobalMaxPooling2D()(conv_name2)
-        pool_name3 = GlobalMaxPooling2D()(conv_name3)
+        conv_name1 = Conv1D(filters=16, 
+                           kernel_size=3, activation='relu')(embed_name)
+        conv_name2 = Conv1D(filters=16, 
+                           kernel_size=4, activation='relu')(embed_name)
+        conv_name3 = Conv1D(filters=16, 
+                           kernel_size=5, activation='relu')(embed_name)
+        pool_name1 = GlobalMaxPooling1D()(conv_name1)
+        pool_name2 = GlobalMaxPooling1D()(conv_name2)
+        pool_name3 = GlobalMaxPooling1D()(conv_name3)
         concat_name = Concatenate(axis=1)([pool_name1, pool_name2, pool_name3])
 
         # concatenate
@@ -167,8 +161,8 @@ class Mercari_Model:
         bn_concat = BatchNormalization()(concat_layer)
         
         # Fully Connected Layer
-        bn1 = BatchNormalization()(Dense(512, activation='relu', use_bias=False)(bn_concat))
-        bn2 = BatchNormalization()(Dense(256, activation='relu', use_bias=False)(bn1))
+        bn1 = BatchNormalization()(Dense(256, activation='relu', use_bias=False)(bn_concat))
+        bn2 = BatchNormalization()(Dense(128, activation='relu', use_bias=False)(bn1))
         fc3 = Dense(128, activation='relu')(bn2)
         output = Dense(1, activation='linear')(fc3)
 
@@ -178,10 +172,10 @@ class Mercari_Model:
                         output)
         self.model.compile(loss='mse', optimizer='adam', metrics=['mae', rmsle_keras])
         
-    def train_model(self, batch_size=8192, epochs=20):
+    def train_model(self, batch_size=64, epochs=2):
         self.model.fit(self.x_train, self.y_train, epochs=epochs, batch_size=batch_size, validation_split=0.01, verbose=1)
 
-    def predict_testset(self, filename='submission.csv', batch_size=8192):
+    def predict_testset(self, filename='submission.csv', batch_size=64):
         preds = self.model.predict(self.x_test, batch_size=batch_size)
         preds = self.y_scaler.inverse_transform(preds)
         preds = np.exp(preds) - 1
