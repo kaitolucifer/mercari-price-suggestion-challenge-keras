@@ -27,3 +27,6 @@ I put all categorical features into different embedding layers.</br>
 And for the text featrues, I change them to sequence data and put them into embedding layers which is initialized using [glove.6B(Wikipedia 2014 + Gigaword 5 (6B tokens, 400K vocab, uncased, 300d vectors))](http://nlp.stanford.edu/data/wordvecs/glove.6B.zip).</br>
 Then use TextCNN to extract their features.(Also tried RNN)</br>
 Sort of joint learning.</br>
+
+### Best Public Score
+0.42611
