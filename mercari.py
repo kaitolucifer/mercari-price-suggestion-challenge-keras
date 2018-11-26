@@ -39,18 +39,6 @@ def preprocessing():
     raw_text = np.hstack([train.item_description.str.lower(), train.name.str.lower()])
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(raw_text)
-    # use glove vectors
-    print('GloVe分散表現を読み込む...')
-    word_index = tokenizer.word_index
-    embeddings_index = {}
-    f = open('glove.6B.100d.txt', encoding='utf-8')
-    for line in f:
-        values = line.split()
-        word = values[0]
-        coefs = np.asarray(values[1:], dtype='float32')
-        embeddings_index[word] = coefs
-    f.close() 
-
     train.item_description = tokenizer.texts_to_sequences(train.item_description.str.lower())
     test.item_description = tokenizer.texts_to_sequences(test.item_description.str.lower())
     train.name = tokenizer.texts_to_sequences(train.name.str.lower())
@@ -80,12 +68,12 @@ def preprocessing():
     y_scaler = MinMaxScaler(feature_range=(-1, 1))
     y_train = y_scaler.fit_transform(y_train.reshape(-1, 1))
     return x_train, x_test, y_train, max_name, max_item_description, max_text, y_scaler,\
-           max_category, max_brand_name, max_item_condition_id, embeddings_index, word_index
+           max_category, max_brand_name, max_item_condition_id
 
 class Mercari_Model:
     def __init__(self):
         x_train, x_test, y_train, max_name, max_item_description, max_text, y_scaler,\
-        max_category, max_brand_name, max_item_condition_id, embeddings_index, word_index = preprocessing()
+        max_category, max_brand_name, max_item_condition_id = preprocessing()
         self.x_train = x_train
         self.x_test = x_test
         self.y_train = y_train
@@ -96,8 +84,6 @@ class Mercari_Model:
         self.max_category = max_category
         self.max_brand_name = max_brand_name
         self.max_item_condition_id = max_item_condition_id
-        self.embeddings_index = embeddings_index
-        self.word_index = word_index
         self.model = None
 
     def create_model(self):
@@ -108,22 +94,14 @@ class Mercari_Model:
         category_name_input = Input(shape=(1,), name='category_name')
         item_condition_id_input = Input(shape=(1,), name='item_condition_id')
         shipping_input = Input(shape=(1,), name='shipping')
-        
-        # GloVe Embedding Matrix
-        embedding_matrix = np.zeros((self.max_text, 100))
-        for word, i in self.word_index.items():
-            embedding_vector = self.embeddings_index.get(word)
-            if embedding_vector is not None:
-                # words not found in embedding index will be all-zeros.
-                embedding_matrix[i] = embedding_vector
 
         # Embedding Layers
-        embed_name = Embedding(self.max_text, 100, weights=[embedding_matrix], trainable=False)(name_input)
-        embed_item_decription = Embedding(self.max_text, 100, weights=[embedding_matrix], trainable=False)(item_description_input)
+        embed_name = Embedding(self.max_text, 64)(name_input)
+        embed_item_decription = Embedding(self.max_text, 64)(item_description_input)
         embed_brand_name = Embedding(self.max_brand_name, 32)(brand_name_input)
         embed_category_name = Embedding(self.max_category, 32)(category_name_input)
         embed_item_condition_id = Embedding(self.max_item_condition_id, 32)(item_condition_id_input)
-        embed_shipping = Embedding(2, 8)(shipping_input)
+        embed_shipping = Embedding(2, 4)(shipping_input)
 
         # TextCNN Layers (You can switch to RNN)
         conv_item_decription1 = Conv1D(filters=64, 
